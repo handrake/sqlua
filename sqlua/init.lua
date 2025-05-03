@@ -61,24 +61,7 @@ function M._db_methods:close()
   sqlite3.sqlite3_close(self._db)
 end
 
-local function bind_params(stmt, params)
-  if not params then return end
-
-  local is_array = (#params > 0)
-
-  for k, v in pairs(params) do
-    local idx
-    if is_array then
-      idx = k
-    elseif type(k) == "string" then
-      idx = sqlite3.sqlite3_bind_parameter_index(stmt, ":" .. k)
-      if idx == 0 then
-        error("no such named parameter: :" .. k)
-      end
-    else
-      error("invalid parameter key: " .. tostring(k))
-    end
-
+local function bind_value(stmt, idx, v)
     local t = type(v)
 
     if t == "number" then
@@ -100,6 +83,26 @@ local function bind_params(stmt, params)
     else
       error("unsupported bind type: " .. t)
     end
+end
+
+local function bind_named(stmt, params)
+  for k, v in pairs(params) do
+    local idx
+    if type(k) == "string" then
+      idx = sqlite3.sqlite3_bind_parameter_index(stmt, ":" .. k)
+      if idx == 0 then
+        error("no such named parameter: :" .. k)
+      end
+    else
+      error("invalid parameter key: " .. tostring(k))
+    end
+    bind_value(stmt, idx, v)
+  end
+end
+
+local function bind_positional(stmt, params)
+  for idx, v in ipairs(params) do
+    bind_value(stmt, idx, v)
   end
 end
 
@@ -134,7 +137,15 @@ function M._db_methods:_get_cached_stmt(sql)
   end
 
   function stmt:bind(params)
-    bind_params(self._stmt, params)
+    if not params then return end
+
+    local is_array = #params > 0
+
+    if is_array then
+      bind_positional(self._stmt, params)
+    else
+      bind_named(self._stmt, params)
+    end
   end
 
   function stmt:step()
