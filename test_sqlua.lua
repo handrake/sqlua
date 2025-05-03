@@ -17,6 +17,24 @@ local function test_insert()
   print("✅ single insert test passed.")
 end
 
+local function test_insert_placeholder()
+  local db = sqlua.connect(":memory:")
+
+  db:execute("CREATE TABLE users (id INTEGER, name TEXT)")
+  db:execute("INSERT INTO users VALUES (:id, :name)", {
+    id = 1,
+    name = "Alice"
+  })
+
+  local rows = db:execute("SELECT * FROM users")
+  assert(#rows == 1, "Expected 1 row")
+  assert(rows[1].id == "1", "Expected id=1")
+  assert(rows[1].name == "Alice", "Expected name='Alice'")
+
+  db:close()
+  print("✅ placeholder insert test passed.")
+end
+
 local function test_rows()
   local db = sqlua.connect(":memory:")
   assert(db.rows, "db:rows() not found!")
@@ -60,5 +78,6 @@ local function test_changes()
 end
 
 test_insert()
+test_insert_placeholder()
 test_rows()
 test_changes()

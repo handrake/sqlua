@@ -19,6 +19,7 @@ ffi.cdef[[
   int sqlite3_bind_double(sqlite3_stmt*, int, double);
   int sqlite3_bind_text(sqlite3_stmt*, int, const char*, int, sqlite3_destructor_type);
   int sqlite3_bind_parameter_count(sqlite3_stmt*);
+  int sqlite3_bind_parameter_index(sqlite3_stmt*, const char *zName);
 
   int sqlite3_changes(sqlite3*);
   int sqlite3_step(sqlite3_stmt*);
@@ -61,26 +62,40 @@ function M._db_methods:close()
 end
 
 local function bind_params(stmt, params)
-  for i, val in ipairs(params or {}) do
-    local idx = i  -- 1-based
-    local t = type(val)
+  if not params then return end
+
+  local is_array = (#params > 0)
+
+  for k, v in pairs(params) do
+    local idx
+    if is_array then
+      idx = k
+    elseif type(k) == "string" then
+      idx = sqlite3.sqlite3_bind_parameter_index(stmt, ":" .. k)
+      if idx == 0 then
+        error("no such named parameter: :" .. k)
+      end
+    else
+      error("invalid parameter key: " .. tostring(k))
+    end
+
+    local t = type(v)
 
     if t == "number" then
-      -- Heuristic: treat as int if whole and within safe range
-      if val % 1 == 0 and math.abs(val) <= 9007199254740991 then
-        sqlite3.sqlite3_bind_int64(stmt, idx, val)
+      if v % 1 == 0 and math.abs(v) <= 9007199254740991 then
+        sqlite3.sqlite3_bind_int64(stmt, idx, v)
       else
-        sqlite3.sqlite3_bind_double(stmt, idx, val)
+        sqlite3.sqlite3_bind_double(stmt, idx, v)
       end
 
     elseif t == "string" then
-      sqlite3.sqlite3_bind_text(stmt, idx, val, #val, SQLITE_TRANSIENT)
+      sqlite3.sqlite3_bind_text(stmt, idx, v, #v, SQLITE_TRANSIENT)
 
-    elseif val == nil then
+    elseif v == nil then
       sqlite3.sqlite3_bind_null(stmt, idx)
 
-    elseif ffi.istype("int64_t", val) then
-      sqlite3.sqlite3_bind_int64(stmt, idx, val)
+    elseif ffi.istype("int64_t", v) then
+      sqlite3.sqlite3_bind_int64(stmt, idx, v)
 
     else
       error("unsupported bind type: " .. t)
