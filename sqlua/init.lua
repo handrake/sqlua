@@ -140,18 +140,16 @@ function M._db_methods:_get_cached_stmt(sql)
   return stmt
 end
 
-function M._db_methods:_get_iterator(sql, params)
+function M._db_methods:_prepare_and_bind(sql, params)
   local stmt = self:_get_cached_stmt(sql)
-  if params then
-    stmt:bind(params)
-  end
+  if params then stmt:bind(params) end
+  return stmt
+end
 
+function M._db_methods:_row_iterator(stmt)
   local done = false
-
-  local function iter()
-    if done then
-      return nil
-    end
+  return function()
+    if done then return nil end
     local rc = stmt:step()
     if rc == 100 then
       return stmt:collect_row()
@@ -162,39 +160,34 @@ function M._db_methods:_get_iterator(sql, params)
     else
       done = true
       stmt:reset()
-      error("step failed: " .. ffi.string(sqlite3.sqlite3_errmsg(self._db)))
+      error("step failed: " .. ffi.string(sqlite3.sqlite3_errmsg(stmt._db)))
     end
   end
-
-  return stmt, iter
 end
 
 function M._db_methods:rows(sql, params)
-  local _, iter = self:_get_iterator(sql, params)
-  return iter
+  local stmt = self:_prepare_and_bind(sql, params)
+  return self:_row_iterator(stmt)
 end
 
 function M._db_methods:execute(sql, params)
-  local stmt, iter = self:_get_iterator(sql, params)
-
+  local stmt = self:_prepare_and_bind(sql, params)
   local returns_rows = sqlite3.sqlite3_column_count(stmt._stmt) > 0
-  if not returns_rows then
-    while true do
-      local rc = stmt:step()
-      if rc == 101 then -- SQLITE_DONE
-        break
-      elseif rc ~= 100 then
-        error("sqlite3_step failed")
-      end
+
+  if returns_rows then
+    local result = {}
+    for row in self:_row_iterator(stmt) do
+      table.insert(result, row)
     end
+    return result
+  else
+    local rc = stmt:step()
+    if rc ~= 101 and rc ~= 100 then
+      error("step failed: " .. ffi.string(sqlite3.sqlite3_errmsg(self._db)))
+    end
+    stmt:reset()
     return true
   end
-
-  local result = {}
-  for row in iter do
-    table.insert(result, row)
-  end
-  return result
 end
 
 return M
