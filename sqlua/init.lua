@@ -20,6 +20,7 @@ ffi.cdef[[
   int sqlite3_bind_text(sqlite3_stmt*, int, const char*, int, sqlite3_destructor_type);
   int sqlite3_bind_parameter_count(sqlite3_stmt*);
 
+  int sqlite3_changes(sqlite3*);
   int sqlite3_step(sqlite3_stmt*);
   int sqlite3_finalize(sqlite3_stmt*);
   const char *sqlite3_errmsg(sqlite3*);
@@ -186,7 +187,8 @@ function M._db_methods:execute(sql, params)
       error("step failed: " .. ffi.string(sqlite3.sqlite3_errmsg(self._db)))
     end
     stmt:reset()
-    return true
+    local changes = sqlite3.sqlite3_changes(self._db)
+    return true, changes
   end
 end
 

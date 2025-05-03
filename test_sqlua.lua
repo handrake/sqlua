@@ -43,5 +43,22 @@ local function test_rows()
   print("✅ row iterator test passed.")
 end
 
+local function test_changes()
+  local db = sqlua.connect(":memory:")
+  assert(db.rows, "db:rows() not found!")
+
+  db:execute("CREATE TABLE users (id INTEGER, name TEXT)")
+  db:execute("INSERT INTO users VALUES (?, ?)", {1, "Alice"})
+  db:execute("INSERT INTO users VALUES (?, ?)", {2, "Bob"})
+
+  local ok, affected = db:execute("UPDATE users SET name = ? WHERE id = ?", {"Jane", 1})
+  assert(ok)
+  assert(affected == 1)
+
+  db:close()
+  print("🔄 rows updated:", affected)
+end
+
 test_insert()
 test_rows()
+test_changes()
