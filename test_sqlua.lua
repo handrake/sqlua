@@ -5,7 +5,7 @@ local sqlua = require("sqlua")
 local db = sqlua.connect(":memory:")
 
 db:execute("CREATE TABLE users (id INTEGER, name TEXT)")
-db:execute("INSERT INTO users VALUES (1, 'Alice')")
+db:execute("INSERT INTO users VALUES (?, ?)", { 1, "Alice" })
 
 local rows = db:execute("SELECT * FROM users")
 assert(#rows == 1, "Expected 1 row")
