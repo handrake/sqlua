@@ -42,13 +42,20 @@ function M.connect(path)
   end
 
   local db = { _db = db_ptr[0] }
-  setmetatable(db, { __index = M._db_methods })
+  setmetatable(db, {
+    __index = M._db_methods,
+  })
   return db
 end
 
-M._db_methods = {}
+M._db_methods = {
+  _stmt_cache = {}
+}
 
 function M._db_methods:close()
+  for _, stmt in pairs(self._stmt_cache or {}) do
+    stmt:finalize()
+  end
   sqlite3.sqlite3_close(self._db)
 end
 
@@ -80,46 +87,113 @@ local function bind_params(stmt, params)
   end
 end
 
-function M._db_methods:execute(sql, params)
+function M._db_methods:_get_cached_stmt(sql)
+  local cached = self._stmt_cache[sql]
+  if cached and not cached._finalized then
+    sqlite3.sqlite3_reset(cached._stmt)
+    return cached
+  end
+
   local stmt_ptr = ffi.new("sqlite3_stmt*[1]")
   local rc = sqlite3.sqlite3_prepare_v2(self._db, sql, #sql, stmt_ptr, nil)
   if rc ~= 0 then
-    error("sqlite3_prepare_v2 failed: " .. ffi.string(sqlite3.sqlite3_errmsg(self._db)))
+    error("prepare failed: " .. ffi.string(sqlite3.sqlite3_errmsg(self._db)))
   end
 
-  local stmt = stmt_ptr[0]
+  local stmt = {
+    _stmt = stmt_ptr[0],
+    _db = self._db,
+    _finalized = false,
+  }
 
-  local expected = sqlite3.sqlite3_bind_parameter_count(stmt)
-
-  if params and #params ~= expected then
-    error(string.format("expected %d params but got %d", expected, #params))
-  end
-
-  if params then
-    bind_params(stmt, params)
-  end
-
-  local result = {}
-
-  while true do
-    local step = sqlite3.sqlite3_step(stmt)
-    if step == 100 then -- SQLITE_ROW
-      local row = {}
-      local col_count = sqlite3.sqlite3_column_count(stmt)
-      for i = 0, col_count - 1 do
-        local name = ffi.string(sqlite3.sqlite3_column_name(stmt, i))
-        local text = sqlite3.sqlite3_column_text(stmt, i)
-        row[name] = text ~= nil and ffi.string(text) or nil
-      end
-      table.insert(result, row)
-    elseif step == 101 then -- SQLITE_DONE
-      break
-    else
-      error("sqlite3_step failed")
+  function stmt:finalize()
+    if not self._finalized then
+      sqlite3.sqlite3_finalize(self._stmt)
+      self._finalized = true
     end
   end
 
-  sqlite3.sqlite3_finalize(stmt)
+  function stmt:reset()
+    sqlite3.sqlite3_reset(self._stmt)
+  end
+
+  function stmt:bind(params)
+    bind_params(self._stmt, params)
+  end
+
+  function stmt:step()
+    return sqlite3.sqlite3_step(self._stmt)
+  end
+
+  function stmt:collect_row()
+    local row = {}
+    local col_count = sqlite3.sqlite3_column_count(self._stmt)
+    for i = 0, col_count - 1 do
+      local name = ffi.string(sqlite3.sqlite3_column_name(self._stmt, i))
+      local text = sqlite3.sqlite3_column_text(self._stmt, i)
+      row[name] = text ~= nil and ffi.string(text) or nil
+    end
+    return row
+  end
+
+  self._stmt_cache[sql] = stmt
+  return stmt
+end
+
+function M._db_methods:_get_iterator(sql, params)
+  local stmt = self:_get_cached_stmt(sql)
+  if params then
+    stmt:bind(params)
+  end
+
+  local done = false
+
+  local function iter()
+    if done then
+      return nil
+    end
+    local rc = stmt:step()
+    if rc == 100 then
+      return stmt:collect_row()
+    elseif rc == 101 then
+      done = true
+      stmt:reset()
+      return nil
+    else
+      done = true
+      stmt:reset()
+      error("step failed: " .. ffi.string(sqlite3.sqlite3_errmsg(self._db)))
+    end
+  end
+
+  return stmt, iter
+end
+
+function M._db_methods:rows(sql, params)
+  local _, iter = self:_get_iterator(sql, params)
+  return iter
+end
+
+function M._db_methods:execute(sql, params)
+  local stmt, iter = self:_get_iterator(sql, params)
+
+  local returns_rows = sqlite3.sqlite3_column_count(stmt._stmt) > 0
+  if not returns_rows then
+    while true do
+      local rc = stmt:step()
+      if rc == 101 then -- SQLITE_DONE
+        break
+      elseif rc ~= 100 then
+        error("sqlite3_step failed")
+      end
+    end
+    return true
+  end
+
+  local result = {}
+  for row in iter do
+    table.insert(result, row)
+  end
   return result
 end
 
