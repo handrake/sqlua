@@ -43,22 +43,24 @@ function M.connect(path)
     error("sqlite3_open failed: " .. ffi.string(sqlite3.sqlite3_errmsg(db_ptr[0])))
   end
 
-  local db = { _db = db_ptr[0] }
+  local db = {
+    _db = db_ptr[0],
+    _stmt_cache = {}
+  }
   setmetatable(db, {
     __index = M._db_methods,
   })
   return db
 end
 
-M._db_methods = {
-  _stmt_cache = {}
-}
+M._db_methods = {}
 
 function M._db_methods:close()
   for _, stmt in pairs(self._stmt_cache or {}) do
     stmt:finalize()
   end
   sqlite3.sqlite3_close(self._db)
+  self._stmt_cache = {}
 end
 
 local function bind_value(stmt, idx, v)

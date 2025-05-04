@@ -94,8 +94,47 @@ local function test_changes()
   print("🔄 rows updated:", affected)
 end
 
+local function test_stmt_cache_leak()
+  local db1 = sqlua.connect(":memory:")
+  local sql1 = "CREATE TABLE users (id INTEGER, name TEXT)"
+
+  db1:execute(sql1)
+  db1:execute("INSERT INTO users VALUES (?, ?)", { 1, "Alice" })
+
+  local rows1 = db1:execute("SELECT * FROM users")
+  assert(#rows1 == 1, "Expected 1 row")
+  assert(rows1[1].id == "1", "Expected id=1")
+  assert(rows1[1].name == "Alice", "Expected name='Alice'")
+
+  db1:close()
+
+  local count = 0
+
+  for _, _ in pairs(db1._stmt_cache or {}) do
+    count = count + 1
+    print("count:", count)
+  end
+
+  assert(count == 0)
+
+  local db2 = sqlua.connect(":memory:")
+
+  db2:execute("CREATE TABLE users (id INTEGER, name TEXT)")
+  db2:execute("INSERT INTO users VALUES (?, ?)", { 1, "Alice" })
+
+  local rows2 = db2:execute("SELECT * FROM users")
+  assert(#rows2 == 1, "Expected 1 row")
+  assert(rows2[1].id == "1", "Expected id=1")
+  assert(rows2[1].name == "Alice", "Expected name='Alice'")
+
+  db2:close()
+
+  print("✅ stmt cache leak test passed.")
+end
+
 test_insert()
 test_insert_file()
 test_insert_placeholder()
 test_rows()
 test_changes()
+test_stmt_cache_leak()
