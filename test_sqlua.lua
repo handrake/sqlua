@@ -127,9 +127,28 @@ local function test_stmt_cache_leak()
   print("✅ stmt cache leak test passed.")
 end
 
+local function test_finalized_stmt_eviction()
+  local db = sqlua.connect(":memory:")
+
+  db:execute("SELECT 1")
+
+  local stmt = db._stmt_cache["SELECT 1"]
+
+  stmt:finalize()
+
+  db:execute("SELECT 1")
+
+  local new_stmt = db._stmt_cache["SELECT 1"]
+
+  assert(new_stmt ~= stmt)
+
+  print("✅ finalized stmt eviction test passed.")
+end
+
 test_insert()
 test_insert_file()
 test_insert_placeholder()
 test_rows()
 test_changes()
 test_stmt_cache_leak()
+test_finalized_stmt_eviction()

@@ -116,9 +116,15 @@ end
 
 function M._db_methods:_get_cached_stmt(sql)
   local cached = self._stmt_cache[sql]
-  if cached and not cached._finalized then
-    sqlite3.sqlite3_reset(cached._stmt)
-    return cached
+
+  if cached then
+    if cached._finalized then
+      self._stmt_cache[sql] = nil
+      cached = nil
+    else
+      sqlite3.sqlite3_reset(cached._stmt)
+      return cached
+    end
   end
 
   local stmt_ptr = ffi.new("sqlite3_stmt*[1]")
