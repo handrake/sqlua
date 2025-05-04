@@ -17,6 +17,23 @@ local function test_insert()
   print("✅ single insert test passed.")
 end
 
+local function test_insert_file()
+  local test_file_name = "./_test.db"
+  local db = sqlua.connect(test_file_name)
+
+  db:execute("CREATE TABLE users (id INTEGER, name TEXT)")
+  db:execute("INSERT INTO users VALUES (?, ?)", { 1, "Alice" })
+
+  local rows = db:execute("SELECT * FROM users")
+  assert(#rows == 1, "Expected 1 row")
+  assert(rows[1].id == "1", "Expected id=1")
+  assert(rows[1].name == "Alice", "Expected name='Alice'")
+
+  db:close()
+  os.remove(test_file_name)
+  print("✅ insert file test passed.")
+end
+
 local function test_insert_placeholder()
   local db = sqlua.connect(":memory:")
 
@@ -78,6 +95,7 @@ local function test_changes()
 end
 
 test_insert()
+test_insert_file()
 test_insert_placeholder()
 test_rows()
 test_changes()
