@@ -1,5 +1,8 @@
 # Sqlua
 
+[![GitHub Stars](https://img.shields.io/github/stars/handrake/sqlua?style=social)](https://github.com/handrake/sqlua/stargazers)
+[![GitHub Watchers](https://img.shields.io/github/watchers/handrake/sqlua?style=social)](https://github.com/handrake/sqlua/watchers)
+
 Pure LuaJIT+FFI SQLite3 binding with:
 
 - Named + positional binding
