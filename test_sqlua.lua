@@ -106,16 +106,11 @@ local function test_stmt_cache_leak()
   assert(rows1[1].id == "1", "Expected id=1")
   assert(rows1[1].name == "Alice", "Expected name='Alice'")
 
+  assert(db1:stmt_cache_size() ~= 0)
+
   db1:close()
 
-  local count = 0
-
-  for _, _ in pairs(db1._stmt_cache or {}) do
-    count = count + 1
-    print("count:", count)
-  end
-
-  assert(count == 0)
+  assert(db1:stmt_cache_size() == 0)
 
   local db2 = sqlua.connect(":memory:")
 

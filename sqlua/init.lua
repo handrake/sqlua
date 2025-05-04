@@ -108,6 +108,12 @@ local function bind_positional(stmt, params)
   end
 end
 
+function M._db_methods:stmt_cache_size()
+  local n = 0
+  for _ in pairs(self._stmt_cache) do n = n + 1 end
+  return n
+end
+
 function M._db_methods:_get_cached_stmt(sql)
   local cached = self._stmt_cache[sql]
   if cached and not cached._finalized then
