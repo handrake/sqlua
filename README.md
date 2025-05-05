@@ -21,3 +21,5 @@ db:execute("INSERT INTO users VALUES (?, ?)", {1, "Alice"})
 for row in db:rows("SELECT * FROM users") do
     print(row.id, row.name)
 end
+
+db:close()
