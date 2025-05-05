@@ -5,13 +5,14 @@ local sqlua = require("sqlua")
 local function test_insert()
   local db = sqlua.connect(":memory:")
 
-  db:execute("CREATE TABLE users (id INTEGER, name TEXT)")
-  db:execute("INSERT INTO users VALUES (?, ?)", { 1, "Alice" })
+  db:execute("CREATE TABLE users (id INTEGER, name TEXT, height FLOAT )")
+  db:execute("INSERT INTO users VALUES (?, ?, ?)", { 1, "Alice", 5.6 })
 
   local rows = db:execute("SELECT * FROM users")
   assert(#rows == 1, "Expected 1 row")
-  assert(rows[1].id == "1", "Expected id=1")
+  assert(rows[1].id == 1, "Expected id=1")
   assert(rows[1].name == "Alice", "Expected name='Alice'")
+  assert(rows[1].height == 5.6, "Expected height=5.6")
 
   db:close()
   print("✅ single insert test passed.")
@@ -26,7 +27,7 @@ local function test_insert_file()
 
   local rows = db:execute("SELECT * FROM users")
   assert(#rows == 1, "Expected 1 row")
-  assert(rows[1].id == "1", "Expected id=1")
+  assert(rows[1].id == 1, "Expected id=1")
   assert(rows[1].name == "Alice", "Expected name='Alice'")
 
   db:close()
@@ -45,7 +46,7 @@ local function test_insert_placeholder()
 
   local rows = db:execute("SELECT * FROM users")
   assert(#rows == 1, "Expected 1 row")
-  assert(rows[1].id == "1", "Expected id=1")
+  assert(rows[1].id == 1, "Expected id=1")
   assert(rows[1].name == "Alice", "Expected name='Alice'")
 
   db:close()
@@ -103,7 +104,7 @@ local function test_stmt_cache_leak()
 
   local rows1 = db1:execute("SELECT * FROM users")
   assert(#rows1 == 1, "Expected 1 row")
-  assert(rows1[1].id == "1", "Expected id=1")
+  assert(rows1[1].id == 1, "Expected id=1")
   assert(rows1[1].name == "Alice", "Expected name='Alice'")
 
   assert(db1:stmt_cache_size() ~= 0)
@@ -119,7 +120,7 @@ local function test_stmt_cache_leak()
 
   local rows2 = db2:execute("SELECT * FROM users")
   assert(#rows2 == 1, "Expected 1 row")
-  assert(rows2[1].id == "1", "Expected id=1")
+  assert(rows2[1].id == 1, "Expected id=1")
   assert(rows2[1].name == "Alice", "Expected name='Alice'")
 
   db2:close()

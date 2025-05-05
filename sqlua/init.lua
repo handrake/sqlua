@@ -21,13 +21,16 @@ ffi.cdef[[
   int sqlite3_bind_parameter_count(sqlite3_stmt*);
   int sqlite3_bind_parameter_index(sqlite3_stmt*, const char *zName);
 
+  sqlite3_int64 sqlite3_column_int64(sqlite3_stmt*, int iCol);
+  double sqlite3_column_double(sqlite3_stmt*, int iCol);
+  const unsigned char *sqlite3_column_text(sqlite3_stmt*, int iCol);
+
   int sqlite3_changes(sqlite3*);
   int sqlite3_step(sqlite3_stmt*);
   int sqlite3_finalize(sqlite3_stmt*);
   const char *sqlite3_errmsg(sqlite3*);
   int sqlite3_column_count(sqlite3_stmt*);
   const char *sqlite3_column_name(sqlite3_stmt*, int N);
-  const unsigned char *sqlite3_column_text(sqlite3_stmt*, int iCol);
   int sqlite3_column_type(sqlite3_stmt*, int iCol);
   int sqlite3_reset(sqlite3_stmt*);
 ]]
@@ -35,6 +38,14 @@ ffi.cdef[[
 local SQLITE_TRANSIENT = ffi.cast("sqlite3_destructor_type", -1)
 
 local M = {}
+
+M.sqlite3_types = {
+  INTEGER = 1,
+  FLOAT   = 2,
+  TEXT    = 3,
+  BLOB    = 4,
+  NULL    = 5,
+}
 
 function M.connect(path)
   local db_ptr = ffi.new("sqlite3*[1]")
@@ -171,8 +182,22 @@ function M._db_methods:_get_cached_stmt(sql)
     local col_count = sqlite3.sqlite3_column_count(self._stmt)
     for i = 0, col_count - 1 do
       local name = ffi.string(sqlite3.sqlite3_column_name(self._stmt, i))
-      local text = sqlite3.sqlite3_column_text(self._stmt, i)
-      row[name] = text ~= nil and ffi.string(text) or nil
+      local col_type = sqlite3.sqlite3_column_type(self._stmt, i)
+
+      local value
+
+      if col_type == M.sqlite3_types.INTEGER then
+        value = sqlite3.sqlite3_column_int64(self._stmt, i)
+      elseif col_type == M.sqlite3_types.FLOAT then
+        value = sqlite3.sqlite3_column_double(self._stmt, i)
+      elseif col_type == M.sqlite3_types.TEXT then
+        local text = sqlite3.sqlite3_column_text(self._stmt, i)
+        value = text ~= nil and ffi.string(text) or nil
+      else
+        value = nil
+      end
+
+      row[name] = value
     end
     return row
   end
