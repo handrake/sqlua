@@ -39,12 +39,19 @@ local SQLITE_TRANSIENT = ffi.cast("sqlite3_destructor_type", -1)
 
 local M = {}
 
-M.sqlite3_types = {
+M.column_types = {
   INTEGER = 1,
   FLOAT   = 2,
   TEXT    = 3,
   BLOB    = 4,
   NULL    = 5,
+}
+
+M.result_codes = {
+  OK      = 0,
+  ERROR   = 1,
+  ROW     = 100,
+  DONE    = 101,
 }
 
 function M.connect(path)
@@ -186,11 +193,11 @@ function M._db_methods:_get_cached_stmt(sql)
 
       local value
 
-      if col_type == M.sqlite3_types.INTEGER then
+      if col_type == M.column_types.INTEGER then
         value = sqlite3.sqlite3_column_int64(self._stmt, i)
-      elseif col_type == M.sqlite3_types.FLOAT then
+      elseif col_type == M.column_types.FLOAT then
         value = sqlite3.sqlite3_column_double(self._stmt, i)
-      elseif col_type == M.sqlite3_types.TEXT then
+      elseif col_type == M.column_types.TEXT then
         local text = sqlite3.sqlite3_column_text(self._stmt, i)
         value = text ~= nil and ffi.string(text) or nil
       else
@@ -217,9 +224,9 @@ function M._db_methods:_row_iterator(stmt)
   return function()
     if done then return nil end
     local rc = stmt:step()
-    if rc == 100 then
+    if rc == M.result_codes.ROW then
       return stmt:collect_row()
-    elseif rc == 101 then
+    elseif rc == M.result_codes.DONE then
       done = true
       stmt:reset()
       return nil
@@ -248,7 +255,7 @@ function M._db_methods:execute(sql, params)
     return result
   else
     local rc = stmt:step()
-    if rc ~= 101 and rc ~= 100 then
+    if rc ~= M.result_codes.DONE and rc ~= M.result_codes.ROW then
       error("step failed: " .. ffi.string(sqlite3.sqlite3_errmsg(self._db)))
     end
     stmt:reset()
